@@ -1,8 +1,8 @@
 const axios = require("axios");
 
 exports.getProjects = (req, res) => {
-  const perPage = req.params.prePage || 10;
-  console.log(req.params);
+  const perPage = req.query.prePage || 10;
+  
   axios
     .get(
       `${
