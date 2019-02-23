@@ -17,3 +17,18 @@ exports.getGroups = (req, res) => {
       console.error(err);
     });
 };
+
+exports.getGroupById = (req, res) => {
+  const id = req.params.id;
+  
+  axios
+    .get(
+      `${process.env.TARGET_SITE}/api/v4/groups/${id}?private_token=${
+        process.env.PRIVATE_TOKEN
+      }`
+    )
+    .then(response => {
+      res.json(response.data);
+    })
+    .catch(console.error);
+};
