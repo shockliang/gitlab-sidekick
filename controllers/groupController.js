@@ -2,13 +2,7 @@ const axios = require("axios");
 
 exports.getGroups = (req, res) => {
   axios
-    .get(
-      `${
-        process.env.TARGET_SITE
-      }/api/v4/groups?statistics=true&all_available=true&private_token=${
-        process.env.PRIVATE_TOKEN
-      }`
-    )
+    .get("/groups?statistics=true&all_available=true")
     .then(response => {
       console.log(response.headers["x-total"]);
       res.json(response.data);
@@ -20,13 +14,9 @@ exports.getGroups = (req, res) => {
 
 exports.getGroupById = (req, res) => {
   const id = req.params.id;
-  
+
   axios
-    .get(
-      `${process.env.TARGET_SITE}/api/v4/groups/${id}?private_token=${
-        process.env.PRIVATE_TOKEN
-      }`
-    )
+    .get(`/groups/${id}`)
     .then(response => {
       res.json(response.data);
     })
