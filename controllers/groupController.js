@@ -2,7 +2,12 @@ const axios = require("axios");
 
 exports.getGroups = (req, res) => {
   axios
-    .get("/groups?statistics=true&all_available=true")
+    .get("/groups", {
+      params: {
+        statistics: true,
+        all_available: true
+      }
+    })
     .then(response => {
       console.log(response.headers["x-total"]);
       res.json(response.data);
