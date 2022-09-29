@@ -1,5 +1,6 @@
 using System.Text.Json;
 using FluentAssertions;
+using Gitlab.Sidekick.Application.Models.Enumerations;
 using Gitlab.Sidekick.Application.Models.Groups;
 using Gitlab.Sidekick.Infrastructure.HttpClients;
 using RestSharp;
@@ -15,6 +16,8 @@ public class GitLabClientTests
     private readonly long _groupId = 1L;
     private readonly string _searchName = "my_group";
     private readonly IList<Group> _groupStubs;
+    private readonly MockHttpMessageHandler _mockHttp;
+    private readonly Uri _apiUri;
     private readonly GitLabClient _target;
 
     public GitLabClientTests()
@@ -28,21 +31,21 @@ public class GitLabClientTests
         };
         var groupsJson = JsonSerializer.Serialize(_groupStubs);
 
-        var mockHttp = new MockHttpMessageHandler();
+        _mockHttp = new MockHttpMessageHandler();
 
         // Setup a respond for the user api (including a wildcard in the URL)
-        mockHttp.When($"{_host}/api/v4/groups/{_groupId}")
+        _mockHttp.When(HttpMethod.Get, $"{_host}/api/v4/groups/{_groupId}")
             .Respond("application/json", groupJson);
 
-        mockHttp.When($"{_host}/api/v4/groups")
+        _mockHttp.When(HttpMethod.Get, $"{_host}/api/v4/groups")
             .WithQueryString("search", _searchName)
             .Respond("application/json", groupsJson);
 
         // Instantiate the client normally, but replace the message handler
         var hostUri = new Uri(_host);
-        var apiUri = new Uri(hostUri, "api/v4");
+        _apiUri = new Uri(hostUri, "api/v4");
 
-        var options = new RestClientOptions(apiUri) { ConfigureMessageHandler = _ => mockHttp };
+        var options = new RestClientOptions(_apiUri) { ConfigureMessageHandler = _ => _mockHttp };
         var client = new RestClient(options);
         _target = new GitLabClient(client, _token);
     }
@@ -101,6 +104,35 @@ public class GitLabClientTests
 
         // Assert
         actual.Should().BeEmpty();
+    }
+
+    #endregion
+
+    #region Create sub group tests
+
+    [Fact]
+    public async Task ItShouldGetGroup_WhenCreateSuccess()
+    {
+        // Arrange
+        var expectedName = "my-sub-group";
+        var expectedPath = "my-sub-group";
+        var expectedVisibility = Visibility.Private;
+        var expectedParentId = 1;
+        var createdGroup = new Group { Id = 2, ParentId = expectedParentId };
+        var createdGroupJson = JsonSerializer.Serialize(createdGroup);
+
+        _mockHttp.When(HttpMethod.Post, $"{_host}/api/v4/groups")
+            .WithHeaders("PRIVATE-TOKEN", _token)
+            .Respond("application/json", createdGroupJson);
+
+        // Act
+        var actual = await _target.CreateSubGroup(
+            expectedName, expectedPath, expectedParentId, expectedVisibility);
+
+        // Assert
+        actual.Should().NotBeNull();
+        actual.Id.Should().Be(createdGroup.Id);
+        actual.ParentId.Should().Be(expectedParentId);
     }
 
     #endregion

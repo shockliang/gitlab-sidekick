@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Gitlab.Sidekick.Application.Interfaces.HttpClients;
+using Gitlab.Sidekick.Application.Models.Enumerations;
 using Gitlab.Sidekick.Application.Models.Groups;
 using RestSharp;
 
@@ -34,6 +35,23 @@ public class GitLabClient : IGitLabClient
             return JsonSerializer.Deserialize<List<Group>>(response.Content);
 
         return ArraySegment<Group>.Empty;
+    }
+
+    public async Task<Group> CreateSubGroup(
+        string name,
+        string path,
+        int parentId,
+        string visibility = Visibility.Private)
+    {
+        var request = CreateRequestWithToken("groups", _token, Method.Post)
+            .AddParameter("name", name)
+            .AddParameter("path", path)
+            .AddParameter("visibility", visibility)
+            .AddParameter("parent_id", parentId);
+
+        var response = await _client.PostAsync(request);
+
+        return response.IsSuccessful ? JsonSerializer.Deserialize<Group>(response.Content) : null;
     }
 
     private static RestRequest CreateRequestWithToken(string resource, string token, Method method)
