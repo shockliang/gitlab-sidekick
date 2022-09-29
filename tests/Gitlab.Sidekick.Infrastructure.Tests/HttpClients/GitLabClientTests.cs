@@ -123,6 +123,10 @@ public class GitLabClientTests
 
         _mockHttp.When(HttpMethod.Post, $"{_host}/api/v4/groups")
             .WithHeaders("PRIVATE-TOKEN", _token)
+            .WithFormData("name", expectedName)
+            .WithFormData("path", expectedPath)
+            .WithFormData("visibility", expectedVisibility)
+            .WithFormData("parent_id", expectedParentId.ToString())
             .Respond("application/json", createdGroupJson);
 
         // Act
@@ -133,6 +137,51 @@ public class GitLabClientTests
         actual.Should().NotBeNull();
         actual.Id.Should().Be(createdGroup.Id);
         actual.ParentId.Should().Be(expectedParentId);
+    }
+
+    #endregion
+
+    #region Create project tests
+
+    [Fact]
+    public async Task CreateProject_ShouldAsExpected()
+    {
+        // Arrange
+        var expectedNamespaceId = 1;
+        var expectedName = "my-sub-group";
+        var expectedPath = "my-sub-group";
+        var expectedVisibility = Visibility.Private;
+        var expectedDefaultBranch = "dev";
+        var expectedParentId = 1;
+        var expectedDescription = "some description";
+        var expectedTags = new List<string> { "tag1,", "tag2" };
+        var createdGroup = new Group { Id = 2, ParentId = expectedParentId };
+        var createdGroupJson = JsonSerializer.Serialize(createdGroup);
+
+        _mockHttp.When(HttpMethod.Post, $"{_host}/api/v4/projects")
+            .WithHeaders("PRIVATE-TOKEN", _token)
+            .WithFormData("namespace_id", expectedNamespaceId.ToString())
+            .WithFormData("name", expectedName)
+            .WithFormData("path", expectedPath)
+            .WithFormData("default_branch", expectedDefaultBranch)
+            .WithFormData("description", expectedDescription)
+            .WithFormData("visibility", expectedVisibility)
+            .WithFormData("tag_list", string.Join(", ",expectedTags))
+            .Respond("application/json", createdGroupJson);
+
+        // Act
+        var actual = await _target.CreateProject(
+            expectedNamespaceId,
+            expectedName,
+            expectedPath,
+            expectedDefaultBranch,
+            expectedDescription,
+            expectedTags,
+            Array.Empty<byte>(),
+            expectedVisibility);
+
+        // Assert
+        actual.Should().NotBeNull();
     }
 
     #endregion

@@ -2,6 +2,7 @@ using System.Text.Json;
 using Gitlab.Sidekick.Application.Interfaces.HttpClients;
 using Gitlab.Sidekick.Application.Models.Enumerations;
 using Gitlab.Sidekick.Application.Models.Groups;
+using Gitlab.Sidekick.Application.Models.Projects;
 using RestSharp;
 
 namespace Gitlab.Sidekick.Infrastructure.HttpClients;
@@ -52,6 +53,40 @@ public class GitLabClient : IGitLabClient
         var response = await _client.PostAsync(request);
 
         return response.IsSuccessful ? JsonSerializer.Deserialize<Group>(response.Content) : null;
+    }
+
+    public async Task<Project> CreateProject(
+        int namespaceId,
+        string name,
+        string path,
+        string defaultBranch,
+        string description,
+        IEnumerable<string> tags,
+        byte[] avatarBytes,
+        string visibility = Visibility.Private)
+    {
+        var tagList = tags.Any()
+            ? string.Join(", ", tags)
+            : "";
+
+        var request = CreateRequestWithToken("projects", _token, Method.Post)
+            .AddParameter("namespace_id", namespaceId)
+            .AddParameter("name", name)
+            .AddParameter("path", path)
+            .AddParameter("default_branch", defaultBranch)
+            .AddParameter("description", description)
+            .AddParameter("visibility", visibility)
+            .AddParameter("tag_list", tagList);
+
+        if (avatarBytes.Any())
+        {
+            request
+                .AddHeader("Content-Type", "multipart/form-data")
+                .AddFile("avatar", avatarBytes, $"{name}-avatar.jpeg");
+        }
+
+        var response = await _client.PostAsync(request);
+        return response.IsSuccessful ? JsonSerializer.Deserialize<Project>(response.Content) : null;
     }
 
     private static RestRequest CreateRequestWithToken(string resource, string token, Method method)
