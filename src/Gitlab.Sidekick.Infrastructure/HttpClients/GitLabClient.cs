@@ -20,22 +20,21 @@ public class GitLabClient : IGitLabClient
 
     public async Task<Group> GetGroup(long groupId)
     {
-        var request = CreateRequestWithToken($"groups/{groupId}", _token, Method.Get);
+        var request = CreateRequestWithToken($"/groups/{groupId}", _token, Method.Get);
         var response = await _client.GetAsync(request);
-        return  await _client.GetAsync<Group>(request);
+        return response.IsSuccessful ? Group.FromJson(response.Content) : null;
     }
 
     public async Task<ICollection<Group>> SearchGroups(string name)
     {
-        var request = CreateRequestWithToken("groups", _token, Method.Get)
+        var request = CreateRequestWithToken("/groups", _token, Method.Get)
             .AddParameter("search", name);
 
         var response = await _client.GetAsync(request);
 
-        if (response.IsSuccessful)
-            return JsonSerializer.Deserialize<List<Group>>(response.Content);
-
-        return ArraySegment<Group>.Empty;
+        return response.IsSuccessful
+            ? JsonSerializer.Deserialize<List<Group>>(response.Content)
+            : ArraySegment<Group>.Empty;
     }
 
     public async Task<Group> CreateSubGroup(
@@ -44,15 +43,15 @@ public class GitLabClient : IGitLabClient
         int parentId,
         string visibility = Visibility.Private)
     {
-        var request = CreateRequestWithToken("groups", _token, Method.Post)
-            .AddParameter("name", name)
-            .AddParameter("path", path)
-            .AddParameter("visibility", visibility)
-            .AddParameter("parent_id", parentId);
+        var request = CreateRequestWithToken("/groups", _token, Method.Post)
+            .AddQueryParameter("name", name)
+            .AddQueryParameter("path", path)
+            .AddQueryParameter("visibility", visibility)
+            .AddQueryParameter("parent_id", parentId);
 
         var response = await _client.PostAsync(request);
 
-        return response.IsSuccessful ? JsonSerializer.Deserialize<Group>(response.Content) : null;
+        return response.IsSuccessful ? Group.FromJson(response.Content) : null;
     }
 
     public async Task<Project> CreateProject(
@@ -69,14 +68,14 @@ public class GitLabClient : IGitLabClient
             ? string.Join(", ", tags)
             : "";
 
-        var request = CreateRequestWithToken("projects", _token, Method.Post)
-            .AddParameter("namespace_id", namespaceId)
-            .AddParameter("name", name)
-            .AddParameter("path", path)
-            .AddParameter("default_branch", defaultBranch)
-            .AddParameter("description", description)
-            .AddParameter("visibility", visibility)
-            .AddParameter("tag_list", tagList);
+        var request = CreateRequestWithToken("/projects", _token, Method.Post)
+            .AddQueryParameter("namespace_id", namespaceId)
+            .AddQueryParameter("name", name)
+            .AddQueryParameter("path", path)
+            .AddQueryParameter("default_branch", defaultBranch)
+            .AddQueryParameter("description", description)
+            .AddQueryParameter("visibility", visibility)
+            .AddQueryParameter("tag_list", tagList);
 
         if (avatarBytes.Any())
         {
