@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.Json;
 using FluentAssertions;
 using Gitlab.Sidekick.Application.Models.Enumerations;
@@ -5,47 +6,56 @@ using Gitlab.Sidekick.Application.Models.Groups;
 using Gitlab.Sidekick.Infrastructure.HttpClients;
 using RestSharp;
 using RichardSzalay.MockHttp;
+using WireMock.RequestBuilders;
+using WireMock.ResponseBuilders;
+using WireMock.Server;
 using Xunit;
 
 namespace Gitlab.Sidekick.Infrastructure.Tests.HttpClients;
 
-public class GitLabClientTests
+public class GitLabClientTests : IClassFixture<HttpMockFixture>
 {
+    private readonly HttpMockFixture _mockFixture;
+    private readonly WireMockServer _mockServer;
     private readonly string _host = "http://localhost";
     private readonly string _token = "some token";
     private readonly long _groupId = 1L;
     private readonly string _searchName = "my_group";
+    private readonly string _groupJson;
+    private readonly string _groupsJson;
+    private readonly string _apiVersionUrl = "/api/v4";
+    private readonly Dictionary<string, string> _headersStub;
     private readonly IList<Group> _groupStubs;
     private readonly MockHttpMessageHandler _mockHttp;
     private readonly Uri _apiUri;
     private readonly GitLabClient _target;
 
-    public GitLabClientTests()
+
+    public GitLabClientTests(HttpMockFixture mockFixture)
     {
+        _mockFixture = mockFixture;
+        _mockServer = _mockFixture.MockServer;
+
+
         var groupStub = new Group { Id = 1, Description = "Group stub"};
-        var groupJson = JsonSerializer.Serialize(groupStub);
+        _groupJson = JsonSerializer.Serialize(groupStub);
         _groupStubs = new List<Group>
         {
             new() { Id = 1, Name = $"{_searchName}_1", Description = "Group stub" },
             new() { Id = 1, Name = $"{_searchName}_2", Description = "Group stub" }
         };
-        var groupsJson = JsonSerializer.Serialize(_groupStubs);
 
-        _mockHttp = new MockHttpMessageHandler();
+        _groupsJson = JsonSerializer.Serialize(_groupStubs);
 
-        // Setup a respond for the user api (including a wildcard in the URL)
-        _mockHttp.When(HttpMethod.Get, $"{_host}/api/v4/groups/{_groupId}")
-            .Respond("application/json", groupJson);
+        _headersStub = new Dictionary<string, string>
+        {
+            ["Content-Type"] = "application/json; charset=UTF-8"
+        };
 
-        _mockHttp.When(HttpMethod.Get, $"{_host}/api/v4/groups")
-            .WithQueryString("search", _searchName)
-            .Respond("application/json", groupsJson);
+        var hostUri = new Uri(_mockServer.Url);
+        _apiUri = new Uri(hostUri, _apiVersionUrl);
 
-        // Instantiate the client normally, but replace the message handler
-        var hostUri = new Uri(_host);
-        _apiUri = new Uri(hostUri, "api/v4");
-
-        var options = new RestClientOptions(_apiUri) { ConfigureMessageHandler = _ => _mockHttp };
+        var options = new RestClientOptions(_apiUri);
         var client = new RestClient(options);
         _target = new GitLabClient(client, _token);
     }
@@ -56,6 +66,15 @@ public class GitLabClientTests
     public async Task GetGroup_ShouldAsExpected()
     {
         // Arrange
+        _mockServer
+            .Given(Request.Create()
+                .WithPath($"{_apiVersionUrl}/groups/{_groupId}")
+                .WithHeader("PRIVATE-TOKEN", _token)
+                .UsingGet())
+            .RespondWith(Response.Create()
+                .WithStatusCode(HttpStatusCode.OK)
+                .WithHeaders(_headersStub)
+                .WithBody(_groupJson));
 
         // Act
         var actual = await _target.GetGroup(_groupId);
@@ -69,6 +88,14 @@ public class GitLabClientTests
     public async Task ItShouldNotFound_WhenGetNotExistGroupId()
     {
         // Arrange
+        _mockServer
+            .Given(Request.Create()
+                .WithPath($"{_apiVersionUrl}/groups/{1024}")
+                .WithHeader("PRIVATE-TOKEN", _token)
+                .UsingGet())
+            .RespondWith(Response.Create()
+                .WithStatusCode(HttpStatusCode.NotFound)
+                .WithHeaders(_headersStub));
 
         // Act
         var actual = await _target.GetGroup(1024);
@@ -85,7 +112,16 @@ public class GitLabClientTests
     public async Task ItShouldGetGroupList_WhenGetExistGroupName()
     {
         // Arrange
-
+        _mockServer
+            .Given(Request.Create()
+                .WithPath($"{_apiVersionUrl}/groups")
+                .WithHeader("PRIVATE-TOKEN", _token)
+                .WithParam("search", _searchName)
+                .UsingGet())
+            .RespondWith(Response.Create()
+                .WithStatusCode(HttpStatusCode.OK)
+                .WithHeaders(_headersStub)
+                .WithBody(_groupsJson));
         // Act
         var actual = await _target.SearchGroups(_searchName);
 
@@ -98,7 +134,14 @@ public class GitLabClientTests
     public async Task ItShouldGet_EmptyCollection_WhenGetNotExistGroupName()
     {
         // Arrange
-
+        _mockServer
+            .Given(Request.Create()
+                .WithPath($"{_apiVersionUrl}/groups")
+                .WithHeader("PRIVATE-TOKEN", _token)
+                .WithParam("search", _searchName)
+                .UsingGet())
+            .RespondWith(Response.Create()
+                .WithStatusCode(HttpStatusCode.NotFound));
         // Act
         var actual = await _target.SearchGroups("not_exist_group");
 
@@ -121,13 +164,20 @@ public class GitLabClientTests
         var createdGroup = new Group { Id = 2, ParentId = expectedParentId };
         var createdGroupJson = JsonSerializer.Serialize(createdGroup);
 
-        _mockHttp.When(HttpMethod.Post, $"{_host}/api/v4/groups")
-            .WithHeaders("PRIVATE-TOKEN", _token)
-            .WithFormData("name", expectedName)
-            .WithFormData("path", expectedPath)
-            .WithFormData("visibility", expectedVisibility)
-            .WithFormData("parent_id", expectedParentId.ToString())
-            .Respond("application/json", createdGroupJson);
+        _mockServer
+            .Given(Request.Create()
+                .WithPath($"{_apiVersionUrl}/groups")
+                .WithHeader("PRIVATE-TOKEN", _token)
+                .WithParam("name", expectedName)
+                .WithParam("path", expectedPath)
+                .WithParam("visibility", expectedVisibility)
+                .WithParam("parent_id", expectedParentId.ToString())
+                .UsingPost())
+            .RespondWith(Response.Create()
+                .WithStatusCode(HttpStatusCode.OK)
+                .WithHeaders(_headersStub)
+                .WithBody(createdGroupJson));
+
 
         // Act
         var actual = await _target.CreateSubGroup(
@@ -158,16 +208,22 @@ public class GitLabClientTests
         var createdGroup = new Group { Id = 2, ParentId = expectedParentId };
         var createdGroupJson = JsonSerializer.Serialize(createdGroup);
 
-        _mockHttp.When(HttpMethod.Post, $"{_host}/api/v4/projects")
-            .WithHeaders("PRIVATE-TOKEN", _token)
-            .WithFormData("namespace_id", expectedNamespaceId.ToString())
-            .WithFormData("name", expectedName)
-            .WithFormData("path", expectedPath)
-            .WithFormData("default_branch", expectedDefaultBranch)
-            .WithFormData("description", expectedDescription)
-            .WithFormData("visibility", expectedVisibility)
-            .WithFormData("tag_list", string.Join(", ",expectedTags))
-            .Respond("application/json", createdGroupJson);
+        _mockServer
+            .Given(Request.Create()
+                .WithPath($"{_apiVersionUrl}/projects")
+                .WithHeader("PRIVATE-TOKEN", _token)
+                .WithParam("namespace_id", expectedNamespaceId.ToString())
+                .WithParam("name", expectedName)
+                .WithParam("path", expectedPath)
+                .WithParam("default_branch", expectedDefaultBranch)
+                .WithParam("description", expectedDescription)
+                .WithParam("visibility", expectedVisibility)
+                .WithParam("tag_list", string.Join(", ",expectedTags))
+                .UsingPost())
+            .RespondWith(Response.Create()
+                .WithStatusCode(HttpStatusCode.OK)
+                .WithHeaders(_headersStub)
+                .WithBody(createdGroupJson));
 
         // Act
         var actual = await _target.CreateProject(
