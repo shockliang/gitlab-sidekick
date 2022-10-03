@@ -6,6 +6,7 @@ using Gitlab.Sidekick.Application.Models.Groups;
 using Gitlab.Sidekick.Infrastructure.HttpClients;
 using RestSharp;
 using RichardSzalay.MockHttp;
+using WireMock.Matchers;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
 using WireMock.Server;
@@ -234,6 +235,54 @@ public class GitLabClientTests : IClassFixture<HttpMockFixture>
             expectedDescription,
             expectedTags,
             Array.Empty<byte>(),
+            expectedVisibility);
+
+        // Assert
+        actual.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task CreateProject_WithAvatarByteArray_ShouldSendWith_ContentType_Multipart_FormData_InHeader()
+    {
+        // Arrange
+        var expectedNamespaceId = 1;
+        var expectedName = "my-sub-group";
+        var expectedPath = "my-sub-group";
+        var expectedVisibility = Visibility.Private;
+        var expectedDefaultBranch = "dev";
+        var expectedParentId = 1;
+        var expectedDescription = "some description";
+        var expectedTags = new List<string> { "tag1", "tag2" };
+        var createdGroup = new Group { Id = 2, ParentId = expectedParentId };
+        var createdGroupJson = JsonSerializer.Serialize(createdGroup);
+
+        _mockServer
+            .Given(Request.Create()
+                .WithPath($"{_apiVersionUrl}/projects")
+                .WithHeader("PRIVATE-TOKEN", _token)
+                .WithHeader("Content-Type", new ContentTypeMatcher("multipart/form-data"))
+                .WithParam("namespace_id", expectedNamespaceId.ToString())
+                .WithParam("name", expectedName)
+                .WithParam("path", expectedPath)
+                .WithParam("default_branch", expectedDefaultBranch)
+                .WithParam("description", expectedDescription)
+                .WithParam("visibility", expectedVisibility)
+                .WithParam("tag_list", string.Join(", ",expectedTags))
+                .UsingPost())
+            .RespondWith(Response.Create()
+                .WithStatusCode(HttpStatusCode.OK)
+                .WithHeaders(_headersStub)
+                .WithBody(createdGroupJson));
+
+        // Act
+        var actual = await _target.CreateProject(
+            expectedNamespaceId,
+            expectedName,
+            expectedPath,
+            expectedDefaultBranch,
+            expectedDescription,
+            expectedTags,
+            new byte[] { 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20 },
             expectedVisibility);
 
         // Assert
