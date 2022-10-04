@@ -290,4 +290,45 @@ public class GitLabClientTests : IClassFixture<HttpMockFixture>
     }
 
     #endregion
+
+    #region Get projects pagination tests
+
+    [Fact]
+    public async Task GetProjectsPagination_ShouldAsExpected()
+    {
+        // Arrange
+        var groupId = 15;
+        var perPageCount = 100;
+        var expectedTotal = 123;
+        var expectedPage = 1;
+        var expectedTotalPages = 2;
+        var expectedPrevPage = 0;
+        var expectedNextPage = 2;
+        _mockServer
+            .Given(Request.Create()
+                .WithPath($"{_apiVersionUrl}/groups/{groupId}/projects")
+                .WithHeader("PRIVATE-TOKEN", _token)
+                .WithParam("per_page", perPageCount.ToString())
+                .UsingGet())
+            .RespondWith(Response.Create()
+                .WithHeader("X-Total", expectedTotal.ToString())
+                .WithHeader("X-Page", expectedPage.ToString())
+                .WithHeader("X-Total-Pages", expectedTotalPages.ToString())
+                .WithHeader("X-Prev-Page", "")
+                .WithHeader("X-Next-Page", expectedNextPage.ToString())
+                .WithHeader("X-Per-Page", perPageCount.ToString()));
+
+        // Act
+        var actual = await _target.GetProjectsPagination(groupId, perPageCount);
+
+        // Assert
+        actual.Total.Should().Be(expectedTotal);
+        actual.Page.Should().Be(expectedPage);
+        actual.TotalPages.Should().Be(expectedTotalPages);
+        actual.PrevPage.Should().Be(expectedPrevPage);
+        actual.NextPage.Should().Be(expectedNextPage);
+        actual.PerPage.Should().Be(perPageCount);
+    }
+
+    #endregion
 }

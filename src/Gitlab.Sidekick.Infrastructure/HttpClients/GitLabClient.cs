@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Gitlab.Sidekick.Application.Interfaces.HttpClients;
+using Gitlab.Sidekick.Application.Models;
 using Gitlab.Sidekick.Application.Models.Enumerations;
 using Gitlab.Sidekick.Application.Models.Groups;
 using Gitlab.Sidekick.Application.Models.Projects;
@@ -24,6 +25,17 @@ public class GitLabClient : IGitLabClient
         var response = await _client.GetAsync(request);
         return response.IsSuccessful ? Group.FromJson(response.Content) : null;
     }
+
+    public async Task<Pagination> GetProjectsPagination(long groupId, int perPageCount)
+    {
+        var request = CreateRequestWithToken($"/groups/{groupId}/projects", _token, Method.Get);
+        request
+            .AddParameter("per_page", perPageCount);
+
+        var response = await _client.ExecuteGetAsync(request);
+        return new Pagination(response.Headers);
+    }
+
 
     public async Task<ICollection<Group>> SearchGroups(string name)
     {
