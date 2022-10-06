@@ -36,6 +36,21 @@ public class GitLabClient : IGitLabClient
         return new Pagination(response.Headers);
     }
 
+    public async Task<Pagination<List<Project>>> ListProjectsByPage(long groupId, int page = 1, int perPageCount = 100)
+    {
+
+        var request = CreateRequestWithToken($"/groups/{groupId}/projects", _token, Method.Get);
+        request
+            .AddParameter("page", page)
+            .AddParameter("per_page", perPageCount);
+
+        var response = await _client.ExecuteGetAsync(request);
+        var data = Project.FromJsonToList(response.Content);
+        var result = new Pagination<List<Project>>(response.Headers, data);
+
+        return result;
+    }
+
 
     public async Task<ICollection<Group>> SearchGroups(string name)
     {

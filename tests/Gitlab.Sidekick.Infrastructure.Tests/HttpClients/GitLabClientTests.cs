@@ -3,6 +3,7 @@ using System.Text.Json;
 using FluentAssertions;
 using Gitlab.Sidekick.Application.Models.Enumerations;
 using Gitlab.Sidekick.Application.Models.Groups;
+using Gitlab.Sidekick.Application.Models.Projects;
 using Gitlab.Sidekick.Infrastructure.HttpClients;
 using RestSharp;
 using RichardSzalay.MockHttp;
@@ -328,6 +329,53 @@ public class GitLabClientTests : IClassFixture<HttpMockFixture>
         actual.PrevPage.Should().Be(expectedPrevPage);
         actual.NextPage.Should().Be(expectedNextPage);
         actual.PerPage.Should().Be(perPageCount);
+    }
+
+    #endregion
+
+    #region List projects tests
+
+    [Fact]
+    public async Task ListProjectsByPage_ShouldAsExpected()
+    {
+        // Arrange
+        var projectStubs = new List<Project>() { new() { Id = 1, }, new() { Id = 2 } };
+        var projectsJson = JsonSerializer.Serialize(projectStubs);
+
+        var groupId = 15;
+        var perPageCount = 100;
+        var expectedTotal = 123;
+        var expectedPage = 2;
+        var expectedTotalPages = 2;
+        var expectedPrevPage = 1;
+        var expectedNextPage = 2;
+        _mockServer
+            .Given(Request.Create()
+                .WithPath($"{_apiVersionUrl}/groups/{groupId}/projects")
+                .WithHeader("PRIVATE-TOKEN", _token)
+                .WithParam("page", expectedPage.ToString())
+                .WithParam("per_page", perPageCount.ToString())
+                .UsingGet())
+            .RespondWith(Response.Create()
+                .WithHeader("X-Total", expectedTotal.ToString())
+                .WithHeader("X-Page", expectedPage.ToString())
+                .WithHeader("X-Total-Pages", expectedTotalPages.ToString())
+                .WithHeader("X-Prev-Page", expectedPrevPage.ToString())
+                .WithHeader("X-Next-Page", "")
+                .WithHeader("X-Per-Page", perPageCount.ToString())
+                .WithBody(projectsJson));
+
+        // Act
+        var actual = await _target.ListProjectsByPage(groupId, expectedPage, perPageCount);
+
+        // Assert
+        actual.Total.Should().Be(expectedTotal);
+        actual.Page.Should().Be(expectedPage);
+        actual.TotalPages.Should().Be(expectedTotalPages);
+        actual.PrevPage.Should().Be(expectedPrevPage);
+        actual.NextPage.Should().Be(0);
+        actual.PerPage.Should().Be(perPageCount);
+        actual.Data.Count.Should().Be(projectStubs.Count);
     }
 
     #endregion
