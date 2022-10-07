@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using FluentAssertions;
+using Gitlab.Sidekick.Application.Models;
 using Gitlab.Sidekick.Application.Models.Enumerations;
 using Gitlab.Sidekick.Application.Models.Groups;
 using Gitlab.Sidekick.Application.Models.Projects;
@@ -408,6 +409,49 @@ public class GitLabClientTests : IClassFixture<HttpMockFixture>
         // Assert
         actual.Should().NotBeNull();
     }
+
+    #endregion
+
+    #region Create slack tests
+
+    [Fact]
+    public async Task CreateSlackService_ShouldAsExpected()
+    {
+        // Arrange
+        var projectId = 1;
+        var webhook = "https://hooks.slack.com/services/somewebhook";
+        var username = "bot";
+        var slackStub = new Slack { Id = 1, Properties = new Properties
+        {
+            Webhook = new Uri(webhook),
+            Username = username
+        }};
+
+
+        var requestBody = new { webhook = webhook, username = username };
+        var requestBodyJson = JsonSerializer.Serialize(requestBody);
+        var slackJson = JsonSerializer.Serialize(slackStub);
+
+        _mockServer
+            .Given(Request.Create()
+                .WithPath($"{_apiVersionUrl}/projects/{projectId}/services/slack")
+                .WithHeader("PRIVATE-TOKEN", _token)
+                .WithHeader("Content-Type", "application/json")
+                .WithParam("webhook", webhook)
+                .WithParam("username", username)
+                .UsingPut())
+            .RespondWith(Response.Create()
+                .WithStatusCode(HttpStatusCode.OK)
+                .WithHeaders(_headersStub)
+                .WithBody(slackJson));
+
+        // Act
+        var actual = await _target.CreateSlackService(projectId, webhook, username);
+
+        // Assert
+        actual.Should().NotBeNull();
+    }
+
 
     #endregion
 }

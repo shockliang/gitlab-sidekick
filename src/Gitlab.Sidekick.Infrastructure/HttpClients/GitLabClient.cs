@@ -133,6 +133,23 @@ public class GitLabClient : IGitLabClient
         return response.IsSuccessful ? Project.FromJson(response.Content) : null;
     }
 
+    public async Task<Slack> CreateSlackService(
+        long projectId,
+        string webhook,
+        string username)
+    {
+        var request = CreateRequestWithToken($"/projects/{projectId}/services/slack", _token, Method.Put);
+
+        request
+            .AddHeader("Content-Type", "application/json")
+            .AddQueryParameter("webhook", webhook)
+            .AddQueryParameter("username", username);
+
+        var response = await _client.PutAsync(request);
+
+        return response.IsSuccessful ? JsonSerializer.Deserialize<Slack>(response.Content) : null;
+    }
+
     private static RestRequest CreateRequestWithToken(string resource, string token, Method method)
     {
         var request = new RestRequest(resource, method) { RequestFormat = DataFormat.Json };
