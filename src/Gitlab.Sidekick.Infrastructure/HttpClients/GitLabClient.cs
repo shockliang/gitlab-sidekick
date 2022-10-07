@@ -51,7 +51,6 @@ public class GitLabClient : IGitLabClient
         return result;
     }
 
-
     public async Task<ICollection<Group>> SearchGroups(string name)
     {
         var request = CreateRequestWithToken("/groups", _token, Method.Get)
@@ -113,6 +112,25 @@ public class GitLabClient : IGitLabClient
 
         var response = await _client.PostAsync(request);
         return response.IsSuccessful ? JsonSerializer.Deserialize<Project>(response.Content) : null;
+    }
+
+    public async Task<Project> UpdateProjectDefaultBranchAndTags(
+        long projectId,
+        string defaultBranch,
+        IEnumerable<string> tags = null)
+    {
+
+        var request = CreateRequestWithToken($"/projects/{projectId}", _token, Method.Put);
+        var tagList = tags != null ? string.Join(", ", tags) : "";
+
+        request
+            .AddQueryParameter("default_branch", defaultBranch);
+
+        if (tags != null && tags.Any())
+            request.AddQueryParameter("tag_list", tagList);
+
+        var response = await _client.PutAsync(request);
+        return response.IsSuccessful ? Project.FromJson(response.Content) : null;
     }
 
     private static RestRequest CreateRequestWithToken(string resource, string token, Method method)

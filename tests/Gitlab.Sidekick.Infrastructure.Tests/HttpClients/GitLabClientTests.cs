@@ -379,4 +379,35 @@ public class GitLabClientTests : IClassFixture<HttpMockFixture>
     }
 
     #endregion
+
+    #region Update project tests
+
+    [Fact]
+    public async Task UpdateProjectDefaultBranchAndTags_ShouldAsExpected()
+    {
+        // Arrange
+        var projectStub = new Project { Id = 1, DefaultBranch = "dev", TagList = new List<string>{"test1", "test2"}};
+        var projectJson = JsonSerializer.Serialize(projectStub);
+
+        _mockServer
+            .Given(Request.Create()
+                .WithPath($"{_apiVersionUrl}/projects/{projectStub.Id}")
+                .WithHeader("PRIVATE-TOKEN", _token)
+                .WithParam("default_branch", projectStub.DefaultBranch)
+                .WithParam("tag_list",string.Join(", ", projectStub.TagList))
+                .UsingPut())
+            .RespondWith(Response.Create()
+                .WithStatusCode(HttpStatusCode.OK)
+                .WithHeaders(_headersStub)
+                .WithBody(projectJson));
+
+        // Act
+        var actual = await _target.UpdateProjectDefaultBranchAndTags(
+            projectStub.Id, projectStub.DefaultBranch, projectStub.TagList);
+
+        // Assert
+        actual.Should().NotBeNull();
+    }
+
+    #endregion
 }
